@@ -4,6 +4,9 @@
 
 A real-time Network Intrusion Detection System (NIDS) that uses Machine Learning (Random Forest & Isolation Forest) to detect and classify network attacks. The system features a modern web dashboard for monitoring, simulation of attack scenarios, and live packet capture analysis.
 
+<img width="1901" height="942" alt="image" src="https://github.com/user-attachments/assets/2ed8c1d7-a09f-4e44-82f0-90511cf3da18" />
+<img width="1911" height="932" alt="image" src="https://github.com/user-attachments/assets/1b045955-95f7-4fc2-a8a2-6ad38bfbd116" />
+
 ## 🚀 Features
 
 - **Real-time Detection**: Analyzes network traffic live using `scapy` (WinPcap/Npcap).

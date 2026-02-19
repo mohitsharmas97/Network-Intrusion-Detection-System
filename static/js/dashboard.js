@@ -40,9 +40,19 @@ socket.on('disconnect', () => {
 
 socket.on('packet_update', (data) => {
     updateStats(data);
-    addPacketToFeed(data, 'packetFeed');
-    addPacketToFeed(data, 'rtPacketFeed');
-    updateTrafficChart(data);
+
+    // Route packet to correct feed based on mode
+    if (data.mode === 'simulation') {
+        addPacketToFeed(data, 'packetFeed');
+        updateTrafficChart(data, 'simulation');
+    } else if (data.mode === 'realtime') {
+        addPacketToFeed(data, 'rtPacketFeed');
+        updateTrafficChart(data, 'realtime');
+    } else {
+        // Fallback for CSV or legacy
+        addPacketToFeed(data, 'packetFeed');
+    }
+
     updateAttackChart(data.attack_counts);
     if (data.is_attack) addAlert(data);
 });
@@ -197,28 +207,35 @@ function initCharts() {
     });
 }
 
-function updateTrafficChart(data) {
+function updateTrafficChart(data, mode) {
     const now = data.timestamp;
     const isAttack = data.is_attack ? 1 : 0;
     const isNormal = data.is_attack ? 0 : 1;
 
-    [trafficChart, rtTrafficChart].forEach(chart => {
-        if (chart.data.labels.length === 0 || chart.data.labels[chart.data.labels.length - 1] !== now) {
-            chart.data.labels.push(now);
-            chart.data.datasets[0].data.push(isNormal);
-            chart.data.datasets[1].data.push(isAttack);
-        } else {
-            const last = chart.data.labels.length - 1;
-            chart.data.datasets[0].data[last] += isNormal;
-            chart.data.datasets[1].data[last] += isAttack;
-        }
+    let chart;
+    if (mode === 'simulation') {
+        chart = trafficChart;
+    } else if (mode === 'realtime') {
+        chart = rtTrafficChart;
+    } else {
+        return;
+    }
 
-        if (chart.data.labels.length > 30) {
-            chart.data.labels.shift();
-            chart.data.datasets.forEach(d => d.data.shift());
-        }
-        chart.update('none');
-    });
+    if (chart.data.labels.length === 0 || chart.data.labels[chart.data.labels.length - 1] !== now) {
+        chart.data.labels.push(now);
+        chart.data.datasets[0].data.push(isNormal);
+        chart.data.datasets[1].data.push(isAttack);
+    } else {
+        const last = chart.data.labels.length - 1;
+        chart.data.datasets[0].data[last] += isNormal;
+        chart.data.datasets[1].data[last] += isAttack;
+    }
+
+    if (chart.data.labels.length > 30) {
+        chart.data.labels.shift();
+        chart.data.datasets.forEach(d => d.data.shift());
+    }
+    chart.update('none');
 }
 
 function updateAttackChart(counts) {
@@ -236,18 +253,25 @@ function updateAttackChart(counts) {
 
 // ─── Simulation ───────────────────────────────────────────────────────────────
 async function startSimulation() {
-    const res = await fetch('/api/simulate/start', { method: 'POST' });
+    const attackType = document.getElementById('simAttackType').value;
+    const res = await fetch('/api/simulate/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ attack_type: attackType })
+    });
     const data = await res.json();
     document.getElementById('simStartBtn').disabled = true;
     document.getElementById('simStopBtn').disabled = false;
+    document.getElementById('simAttackType').disabled = true; // Disable selection while running
     document.getElementById('simStatus').innerHTML = '<span class="dot-running"></span> Running...';
-    showToast('Simulation started');
+    showToast(`Simulation started (${attackType})`);
 }
 
 async function stopSimulation() {
     const res = await fetch('/api/simulate/stop', { method: 'POST' });
     document.getElementById('simStartBtn').disabled = false;
     document.getElementById('simStopBtn').disabled = true;
+    document.getElementById('simAttackType').disabled = false; // Re-enable selection
     document.getElementById('simStatus').innerHTML = '<span class="dot-idle"></span> Stopped';
     showToast('Simulation stopped');
 }

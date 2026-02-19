@@ -78,6 +78,11 @@ stats = {
     'recent_alerts': []
 }
 
+# Simulation Config
+simulation_config = {
+    'attack_type': 'Random'
+}
+
 # ─── Encryption ───────────────────────────────────────────────────────────────
 def generate_aes_key():
     return os.urandom(16)
@@ -311,13 +316,17 @@ def predict_csv():
 
 @app.route('/api/simulate/start', methods=['POST'])
 def start_simulation():
-    global simulation_running
+    global simulation_running, simulation_config
     if simulation_running:
         return jsonify({'message': 'Simulation already running'})
+    
+    data = request.json or {}
+    simulation_config['attack_type'] = data.get('attack_type', 'Random')
+    
     simulation_running = True
     t = threading.Thread(target=run_simulation, daemon=True)
     t.start()
-    return jsonify({'message': 'Simulation started'})
+    return jsonify({'message': f"Simulation started ({simulation_config['attack_type']})"})
 
 @app.route('/api/simulate/stop', methods=['POST'])
 def stop_simulation():
@@ -327,16 +336,25 @@ def stop_simulation():
 
 def run_simulation():
     """Background thread: generate synthetic packets and emit via SocketIO."""
-    global simulation_running
+    global simulation_running, simulation_config
     aes_key = generate_aes_key()
 
     while simulation_running:
         try:
-            attack_type = random.choices(
-                ATTACK_TYPES,
-                weights=[30, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 2, 2],
-                k=1
-            )[0]
+            selected_type = simulation_config.get('attack_type', 'Random')
+            
+            if selected_type == 'Random':
+                attack_type = random.choices(
+                    ATTACK_TYPES,
+                    weights=[30, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 2, 2],
+                    k=1
+                )[0]
+            else:
+                # If specific type selected, generate that type 90% of time, Normal 10% (for realism)
+                # Or just strictly generate that type if user wants to see specific attacks
+                # The user request said "specify the attack namse and all", implying strict selection
+                attack_type = selected_type
+
             row = generate_sample_row(attack_type)
             df = pd.DataFrame([row])
             X_scaled = preprocess_features(df)
@@ -366,6 +384,7 @@ def run_simulation():
             # Build payload — all native Python types, safe for JSON
             payload = {
                 'timestamp': datetime.now().strftime('%H:%M:%S'),
+                'mode': 'simulation',
                 'src_ip': str(row['ip.src_host']),
                 'dst_ip': str(row['ip.dst_host']),
                 'attack_type': pred['attack_type'],
@@ -484,6 +503,7 @@ def run_realtime_capture():
 
                 payload = {
                     'timestamp': datetime.now().strftime('%H:%M:%S'),
+                    'mode': 'realtime',
                     'src_ip': src_ip,
                     'dst_ip': dst_ip,
                     'attack_type': pred['attack_type'],

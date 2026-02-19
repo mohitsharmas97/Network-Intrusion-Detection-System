@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Network Intrusion Detection System | NIDS Dashboard</title>
+    <meta name="description" content="Real-time network intrusion detection using ML-powered analysis with AES-128-GCM encryption">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.min.js"></script>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-left">
+            <div class="logo">
+                <i class="fas fa-shield-halved"></i>
+                <span>NIDS</span>
+            </div>
+            <div class="header-title">
+                <h1>Network Intrusion Detection System</h1>
+                <p>Edge-IIoTset · Random Forest · AES-128-GCM</p>
+            </div>
+        </div>
+        <div class="header-right">
+            <div class="status-badge" id="connectionStatus">
+                <span class="status-dot"></span>
+                <span id="statusText">Connecting...</span>
+            </div>
+            <button class="btn btn-ghost" onclick="resetStats()" title="Reset Statistics">
+                <i class="fas fa-rotate-right"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Stats Bar -->
+    <div class="stats-bar">
+        <div class="stat-card">
+            <div class="stat-icon blue"><i class="fas fa-network-wired"></i></div>
+            <div class="stat-info">
+                <div class="stat-value" id="totalPackets">0</div>
+                <div class="stat-label">Total Packets</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon red"><i class="fas fa-triangle-exclamation"></i></div>
+            <div class="stat-info">
+                <div class="stat-value" id="attacksDetected">0</div>
+                <div class="stat-label">Attacks Detected</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon green"><i class="fas fa-circle-check"></i></div>
+            <div class="stat-info">
+                <div class="stat-value" id="normalTraffic">0</div>
+                <div class="stat-label">Normal Traffic</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon purple"><i class="fas fa-lock"></i></div>
+            <div class="stat-info">
+                <div class="stat-value" id="encTime">0 ms</div>
+                <div class="stat-label">Avg Enc. Time</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon orange"><i class="fas fa-percent"></i></div>
+            <div class="stat-info">
+                <div class="stat-value" id="attackRate">0%</div>
+                <div class="stat-label">Attack Rate</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-container">
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('simulation')" id="tab-simulation">
+                <i class="fas fa-play-circle"></i> Simulation
+            </button>
+            <button class="tab" onclick="switchTab('csv')" id="tab-csv">
+                <i class="fas fa-file-csv"></i> CSV Prediction
+            </button>
+            <button class="tab" onclick="switchTab('realtime')" id="tab-realtime">
+                <i class="fas fa-satellite-dish"></i> Real-time Capture
+            </button>
+        </div>
+
+        <!-- ── Simulation Tab ── -->
+        <div class="tab-content active" id="content-simulation">
+            <div class="panel-row">
+                <!-- Simulation Controls -->
+                <div class="panel control-panel">
+                    <div class="panel-header">
+                        <h3><i class="fas fa-sliders"></i> Simulation Controls</h3>
+                    </div>
+                    <div class="panel-body">
+                        <p class="hint">Generates synthetic network traffic using the Edge-IIoTset schema and runs ML predictions in real-time.</p>
+                        <div class="btn-group">
+                            <button class="btn btn-primary" id="simStartBtn" onclick="startSimulation()">
+                                <i class="fas fa-play"></i> Start Simulation
+                            </button>
+                            <button class="btn btn-danger" id="simStopBtn" onclick="stopSimulation()" disabled>
+                                <i class="fas fa-stop"></i> Stop
+                            </button>
+                        </div>
+                        <div class="sim-status" id="simStatus">
+                            <span class="dot-idle"></span> Idle
+                        </div>
+                        <hr class="divider">
+                        <div class="info-box">
+                            <div class="info-row">
+                                <span>Algorithm</span><span class="badge blue">Random Forest</span>
+                            </div>
+                            <div class="info-row">
+                                <span>Anomaly Detection</span><span class="badge purple">Isolation Forest</span>
+                            </div>
+                            <div class="info-row">
+                                <span>Encryption</span><span class="badge green">AES-128-GCM</span>
+                            </div>
+                            <div class="info-row">
+                                <span>Authentication</span><span class="badge orange">HMAC-SHA256</span>
+                            </div>
+                            <div class="info-row">
+                                <span>Attack Classes</span><span class="badge gray">15 Types</span>
+                            </div>
+                            <div class="info-row">
+                                <span>Model Accuracy</span><span class="badge green">95.62%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live Feed -->
+                <div class="panel feed-panel">
+                    <div class="panel-header">
+                        <h3><i class="fas fa-stream"></i> Live Packet Feed</h3>
+                        <button class="btn btn-ghost btn-sm" onclick="clearFeed()">Clear</button>
+                    </div>
+                    <div class="packet-feed" id="packetFeed">
+                        <div class="feed-empty">
+                            <i class="fas fa-satellite-dish"></i>
+                            <p>Start simulation to see live packets</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Row -->
+            <div class="panel-row">
+                <div class="panel chart-panel">
+                    <div class="panel-header">
+                        <h3><i class="fas fa-chart-line"></i> Traffic Over Time</h3>
+                    </div>
+                    <div class="panel-body">
+                        <canvas id="trafficChart" height="120"></canvas>
+                    </div>
+                </div>
+                <div class="panel chart-panel-sm">
+                    <div class="panel-header">
+                        <h3><i class="fas fa-chart-pie"></i> Attack Distribution</h3>
+                    </div>
+                    <div class="panel-body">
+                        <canvas id="attackChart" height="180"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Alerts -->
+            <div class="panel">
+                <div class="panel-header">
+                    <h3><i class="fas fa-bell"></i> Security Alerts</h3>
+                    <span class="badge red" id="alertCount">0</span>
+                </div>
+                <div class="alerts-container" id="alertsContainer">
+                    <div class="feed-empty">
+                        <i class="fas fa-shield-halved"></i>
+                        <p>No alerts yet — system is monitoring</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── CSV Tab ── -->
+        <div class="tab-content" id="content-csv">
+            <div class="panel-row">
+                <div class="panel control-panel">
+                    <div class="panel-header">
+                        <h3><i class="fas fa-upload"></i> Upload CSV Dataset</h3>
+                    </div>
+                    <div class="panel-body">
+                        <p class="hint">Upload a CSV file from the Edge-IIoTset dataset (or use the generated sample). The system will classify each row and encrypt the results.</p>
+
+                        <div class="upload-zone" id="uploadZone" onclick="document.getElementById('csvFile').click()">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <p>Click to select CSV file</p>
+                            <span>or drag and drop here</span>
+                            <input type="file" id="csvFile" accept=".csv" style="display:none" onchange="handleFileSelect(event)">
+                        </div>
+
+                        <div id="fileInfo" class="file-info hidden">
+                            <i class="fas fa-file-csv"></i>
+                            <span id="fileName"></span>
+                            <button class="btn btn-ghost btn-sm" onclick="clearFile()"><i class="fas fa-times"></i></button>
+                        </div>
+
+                        <div class="btn-group">
+                            <button class="btn btn-primary" id="predictBtn" onclick="runCsvPrediction()" disabled>
+                                <i class="fas fa-brain"></i> Run Prediction
+                            </button>
+                            <button class="btn btn-secondary" onclick="downloadSample()">
+                                <i class="fas fa-download"></i> Sample CSV
+                            </button>
+                        </div>
+
+                        <div id="csvProgress" class="progress-container hidden">
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="progressFill"></div>
+                            </div>
+                            <span id="progressText">Processing...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CSV Summary -->
+                <div class="panel" id="csvSummaryPanel" style="display:none">
+                    <div class="panel-header">
+                        <h3><i class="fas fa-chart-bar"></i> Prediction Summary</h3>
+                    </div>
+                    <div class="panel-body">
+                        <div class="summary-grid" id="csvSummary"></div>
+                        <canvas id="csvPieChart" height="200" style="margin-top:16px"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results Table -->
+            <div class="panel" id="csvResultsPanel" style="display:none">
+                <div class="panel-header">
+                    <h3><i class="fas fa-table"></i> Prediction Results</h3>
+                    <span class="badge blue" id="resultCount">0 rows</span>
+                </div>
+                <div class="table-wrapper">
+                    <table class="results-table" id="resultsTable">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Source IP</th>
+                                <th>Dest IP</th>
+                                <th>Classification</th>
+                                <th>Confidence</th>
+                                <th>Risk</th>
+                                <th>Anomaly</th>
+                                <th>Enc. Time</th>
+                            </tr>
+                        </thead>
+                        <tbody id="resultsBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Real-time Tab ── -->
+        <div class="tab-content" id="content-realtime">
+            <div class="panel-row">
+                <div class="panel control-panel">
+                    <div class="panel-header">
+                        <h3><i class="fas fa-satellite-dish"></i> Live Network Capture</h3>
+                    </div>
+                    <div class="panel-body">
+                        <div class="warning-box">
+                            <i class="fas fa-triangle-exclamation"></i>
+                            <div>
+                                <strong>Requirements</strong>
+                                <p>Real-time capture requires:</p>
+                                <ul>
+                                    <li>Admin/root privileges</li>
+                                    <li><code>pip install scapy</code></li>
+                                    <li>Npcap installed (Windows)</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="btn-group" style="margin-top:16px">
+                            <button class="btn btn-primary" id="rtStartBtn" onclick="startRealtime()">
+                                <i class="fas fa-play"></i> Start Capture
+                            </button>
+                            <button class="btn btn-danger" id="rtStopBtn" onclick="stopRealtime()" disabled>
+                                <i class="fas fa-stop"></i> Stop
+                            </button>
+                        </div>
+                        <div class="sim-status" id="rtStatus">
+                            <span class="dot-idle"></span> Idle
+                        </div>
+                        <hr class="divider">
+                        <div class="info-box">
+                            <div class="info-row">
+                                <span>Capture Mode</span><span class="badge blue">Promiscuous</span>
+                            </div>
+                            <div class="info-row">
+                                <span>Protocol</span><span class="badge gray">TCP / UDP / ICMP</span>
+                            </div>
+                            <div class="info-row">
+                                <span>Processing</span><span class="badge green">Real-time ML</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live Feed (shared) -->
+                <div class="panel feed-panel">
+                    <div class="panel-header">
+                        <h3><i class="fas fa-stream"></i> Live Packet Feed</h3>
+                        <button class="btn btn-ghost btn-sm" onclick="clearFeed()">Clear</button>
+                    </div>
+                    <div class="packet-feed" id="rtPacketFeed">
+                        <div class="feed-empty">
+                            <i class="fas fa-satellite-dish"></i>
+                            <p>Start capture to see live packets</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts (same as simulation) -->
+            <div class="panel-row">
+                <div class="panel chart-panel">
+                    <div class="panel-header">
+                        <h3><i class="fas fa-chart-line"></i> Traffic Over Time</h3>
+                    </div>
+                    <div class="panel-body">
+                        <canvas id="rtTrafficChart" height="120"></canvas>
+                    </div>
+                </div>
+                <div class="panel chart-panel-sm">
+                    <div class="panel-header">
+                        <h3><i class="fas fa-chart-pie"></i> Attack Distribution</h3>
+                    </div>
+                    <div class="panel-body">
+                        <canvas id="rtAttackChart" height="180"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast" id="toast"></div>
+
+    <script src="/static/js/dashboard.js"></script>
+</body>
+</html>
